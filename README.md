@@ -38,6 +38,7 @@ For details on both configurations, see [Wiki](https://github.com/hargata/lubelo
 - Get latest odometer reading from vehicle
 - Get odometer history for a vehicle (this fork)
 - Get maintenance reminders for a vehicle (this fork)
+- Add a maintenance reminder for a vehicle (this fork)
 - Check status of LubeLogger instance
 
 ## Example Usage
