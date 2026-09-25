@@ -87,6 +87,28 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Gets LubeLogger server information: version, locale, currency symbol, decimal separator and date format.")]
+        public async Task<string> GetServerInformation()
+        {
+            string endpoint = $"{instance}/api/info";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Check if a vehicle is an electric vehicle")]
         public async Task<string> GetVehicleIsElectric([Description("id of the vehicle")] int vehicleId)
         {
