@@ -546,13 +546,22 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
-        [McpServerTool, Description("Gets odometer history for a vehicle, oldest first. Use this plus the current date to work out average distance per day and project forward to any future mileage.")]
+        [McpServerTool, Description("Gets odometer history for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological, so sort on the date field before working out average distance per day to project forward to a future mileage.")]
         public async Task<string> GetOdometerRecords(
-            [Description("id of the vehicle")] int vehicleId
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
             )
         {
 
-            string endpoint = $"{instance}/api/vehicle/odometerrecords?vehicleId={vehicleId}";
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/odometerrecords" : "/api/vehicle/odometerrecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
 
             var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
             request.Headers.Add("culture-invariant", "true");
@@ -563,8 +572,9 @@ namespace LubeLogMCP.MCP
                 // this route types id/odometer as string with a lenient (string-or-number) converter
                 // for *reading* an import payload, but what it actually writes back on GET is a bare
                 // JSON number for those fields — a strongly-typed model here would only be one lubelog
-                // release away from breaking again. Records come back oldest-first already; if that
-                // ever isn't true for your data, sort on the "date" field.
+                // release away from breaking again. Records are returned in the order
+                // LubeLogger stores them, which is not guaranteed to be chronological, so callers should sort on
+                // the "date" field.
                 var httpClient = _httpClientFactory.CreateClient();
                 var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
                 return result;
