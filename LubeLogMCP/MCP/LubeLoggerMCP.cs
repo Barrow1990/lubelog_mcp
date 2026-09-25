@@ -35,7 +35,7 @@ namespace LubeLogMCP.MCP
                 string endpoint = $"{instance}/api/version";
                 var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
                 AddAuthHeaders(request);
-                if (request.Headers.Contains("Authorization"))
+                if (request.Headers.Contains("Authorization") || request.Headers.Contains("x-api-key"))
                 {
                     result += "Auth Configured";
                 } else
@@ -63,6 +63,28 @@ namespace LubeLogMCP.MCP
             }
             return result;
         }
+        [McpServerTool, Description("Says which LubeLogger account the configured credentials belong to: username, email, and whether it is an admin and/or the root user. Useful for working out why a request is refused.")]
+        public async Task<string> WhoAmI()
+        {
+            string endpoint = $"{instance}/api/whoami";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Gets vehicles in garage.")]
         public async Task<string> GetVehicles()
         {
@@ -87,6 +109,28 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Gets LubeLogger server information: version, locale, currency symbol, decimal separator and date format.")]
+        public async Task<string> GetServerInformation()
+        {
+            string endpoint = $"{instance}/api/info";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Check if a vehicle is an electric vehicle")]
         public async Task<string> GetVehicleIsElectric([Description("id of the vehicle")] int vehicleId)
         {
@@ -105,6 +149,30 @@ namespace LubeLogMCP.MCP
                     }
                 }
                 return "this is not an electric vehicle";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Gets summary statistics for a vehicle, or for every vehicle you can see when vehicleId is omitted: record counts and costs per record type, reminder counts by urgency, the next reminder, planner counts and the last reported odometer.")]
+        public async Task<string> GetVehicleInfo(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null
+            )
+        {
+            string endpoint = $"{instance}/api/vehicle/info" + (vehicleId.HasValue ? $"?vehicleId={vehicleId.Value}" : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -160,6 +228,39 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Gets fuel (gas) records for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological.")]
+        public async Task<string> GetFuelRecords(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
+            )
+        {
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/gasrecords" : "/api/vehicle/gasrecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Adds a service record.")]
         public async Task<string> AddServiceRecord(
             [Description("id of the vehicle")] int vehicleId,
@@ -191,6 +292,39 @@ namespace LubeLogMCP.MCP
             AddAuthHeaders(request);
             try
             {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Gets service records for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological.")]
+        public async Task<string> GetServiceRecords(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
+            )
+        {
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/servicerecords" : "/api/vehicle/servicerecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
                 var httpClient = _httpClientFactory.CreateClient();
                 var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
 
@@ -242,6 +376,39 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Gets repair records for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological.")]
+        public async Task<string> GetRepairRecords(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
+            )
+        {
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/repairrecords" : "/api/vehicle/repairrecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Adds an upgrade record.")]
         public async Task<string> AddUpgradeRecord(
             [Description("id of the vehicle")] int vehicleId,
@@ -273,6 +440,39 @@ namespace LubeLogMCP.MCP
             AddAuthHeaders(request);
             try
             {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Gets upgrade records for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological.")]
+        public async Task<string> GetUpgradeRecords(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
+            )
+        {
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/upgraderecords" : "/api/vehicle/upgraderecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
                 var httpClient = _httpClientFactory.CreateClient();
                 var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
 
@@ -326,6 +526,39 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Gets planner (plan) records for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological.")]
+        public async Task<string> GetPlanRecords(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
+            )
+        {
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/planrecords" : "/api/vehicle/planrecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Get Equipped Equipment for a vehicle")]
         public async Task<string> GetEquippedEquipment(
             [Description("id of the vehicle")] int vehicleId
@@ -344,6 +577,39 @@ namespace LubeLogMCP.MCP
                 result?.RemoveAll(x => !x.IsEquipped);
                 var serializedResult = JsonSerializer.Serialize(result);
                 return serializedResult;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Gets tax records for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological.")]
+        public async Task<string> GetTaxRecords(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
+            )
+        {
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/taxrecords" : "/api/vehicle/taxrecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -395,6 +661,39 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Gets supply records for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological.")]
+        public async Task<string> GetSupplyRecords(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
+            )
+        {
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/supplyrecords" : "/api/vehicle/supplyrecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Adds a shop supply record.")]
         public async Task<string> AddShopSupplyRecord(
             [Description("Date purchased")] DateTime date,
@@ -429,6 +728,39 @@ namespace LubeLogMCP.MCP
             AddAuthHeaders(request);
             try
             {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Gets notes for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological.")]
+        public async Task<string> GetNotes(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
+            )
+        {
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/notes" : "/api/vehicle/notes/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
                 var httpClient = _httpClientFactory.CreateClient();
                 var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
 
@@ -546,13 +878,22 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
-        [McpServerTool, Description("Gets odometer history for a vehicle, oldest first. Use this plus the current date to work out average distance per day and project forward to any future mileage.")]
+        [McpServerTool, Description("Gets odometer history for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological, so sort on the date field before working out average distance per day to project forward to a future mileage.")]
         public async Task<string> GetOdometerRecords(
-            [Description("id of the vehicle")] int vehicleId
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
             )
         {
 
-            string endpoint = $"{instance}/api/vehicle/odometerrecords?vehicleId={vehicleId}";
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/odometerrecords" : "/api/vehicle/odometerrecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
 
             var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
             request.Headers.Add("culture-invariant", "true");
@@ -563,8 +904,9 @@ namespace LubeLogMCP.MCP
                 // this route types id/odometer as string with a lenient (string-or-number) converter
                 // for *reading* an import payload, but what it actually writes back on GET is a bare
                 // JSON number for those fields — a strongly-typed model here would only be one lubelog
-                // release away from breaking again. Records come back oldest-first already; if that
-                // ever isn't true for your data, sort on the "date" field.
+                // release away from breaking again. Records are returned in the order
+                // LubeLogger stores them, which is not guaranteed to be chronological, so callers should sort on
+                // the "date" field.
                 var httpClient = _httpClientFactory.CreateClient();
                 var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
                 return result;
@@ -574,13 +916,20 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
-        [McpServerTool, Description("Gets maintenance reminders for a vehicle: what is due, on which metric (Date, Odometer, or Both), the due date/odometer, and lubelog's own urgency and days/distance-remaining countdown as of now.")]
+        [McpServerTool, Description("Gets maintenance reminders for a vehicle, or for every vehicle you can see when vehicleId is omitted: what is due, on which metric (Date, Odometer, or Both), the due date/odometer, and lubelog's own urgency and days/distance-remaining countdown as of now. Optionally limited to certain urgencies and/or tags.")]
         public async Task<string> GetReminders(
-            [Description("id of the vehicle")] int vehicleId
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only reminders with these urgencies (NotUrgent, Urgent, VeryUrgent, PastDue); omit for all")] List<ReminderUrgency>? urgencies = null,
+            [Description("Space-separated tags; reminders with any of them are returned")] string tags = ""
             )
         {
 
-            string endpoint = $"{instance}/api/vehicle/reminders?vehicleId={vehicleId}";
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            foreach (var urgency in urgencies ?? new List<ReminderUrgency>()) query.Add($"urgencies={urgency}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/reminders" : "/api/vehicle/reminders/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
 
             var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
             request.Headers.Add("culture-invariant", "true");
