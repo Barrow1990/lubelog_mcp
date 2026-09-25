@@ -522,10 +522,15 @@ namespace LubeLogMCP.MCP
             AddAuthHeaders(request);
             try
             {
+                // Passed through as-is, like GetLatestOdometer below: lubelog's own export DTO for
+                // this route types id/odometer as string with a lenient (string-or-number) converter
+                // for *reading* an import payload, but what it actually writes back on GET is a bare
+                // JSON number for those fields — a strongly-typed model here would only be one lubelog
+                // release away from breaking again. Records come back oldest-first already; if that
+                // ever isn't true for your data, sort on the "date" field.
                 var httpClient = _httpClientFactory.CreateClient();
-                var result = await httpClient.SendAsync(request).Result.Content.ReadFromJsonAsync<List<OdometerRecordApiModel>>();
-                var serializedResult = JsonSerializer.Serialize(result?.OrderBy(x => x.Date));
-                return serializedResult;
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+                return result;
             }
             catch (Exception ex)
             {
@@ -545,10 +550,10 @@ namespace LubeLogMCP.MCP
             AddAuthHeaders(request);
             try
             {
+                // Passed through as-is - same reasoning as GetOdometerRecords above.
                 var httpClient = _httpClientFactory.CreateClient();
-                var result = await httpClient.SendAsync(request).Result.Content.ReadFromJsonAsync<List<ReminderApiModel>>();
-                var serializedResult = JsonSerializer.Serialize(result);
-                return serializedResult;
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+                return result;
             }
             catch (Exception ex)
             {
