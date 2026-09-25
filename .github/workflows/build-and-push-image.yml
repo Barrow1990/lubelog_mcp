@@ -33,6 +33,8 @@ jobs:
           username: "${{ github.actor }}"
           password: "${{ secrets.GITHUB_TOKEN }}"
 
+      # A build of any branch other than the default (run by hand) is tagged with the branch name,
+      # so a test branch can be deployed without touching :latest.
       - name: Docker Metadata
         id: meta
         uses: docker/metadata-action@v6
@@ -44,6 +46,7 @@ jobs:
             type=edge,branch=main
             type=ref,event=tag
             type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch,enable=${{ github.ref_name != github.event.repository.default_branch }}
 
       - name: Build and push
         uses: docker/build-push-action@v7
