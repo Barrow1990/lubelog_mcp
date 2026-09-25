@@ -111,6 +111,30 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Gets summary statistics for a vehicle, or for every vehicle you can see when vehicleId is omitted: record counts and costs per record type, reminder counts by urgency, the next reminder, planner counts and the last reported odometer.")]
+        public async Task<string> GetVehicleInfo(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null
+            )
+        {
+            string endpoint = $"{instance}/api/vehicle/info" + (vehicleId.HasValue ? $"?vehicleId={vehicleId.Value}" : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Adds a fuel record.")]
         public async Task<string> AddFuelRecord(
             [Description("id of the vehicle")] int vehicleId,
