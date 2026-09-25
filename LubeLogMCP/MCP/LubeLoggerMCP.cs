@@ -574,13 +574,20 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
-        [McpServerTool, Description("Gets maintenance reminders for a vehicle: what is due, on which metric (Date, Odometer, or Both), the due date/odometer, and lubelog's own urgency and days/distance-remaining countdown as of now.")]
+        [McpServerTool, Description("Gets maintenance reminders for a vehicle, or for every vehicle you can see when vehicleId is omitted: what is due, on which metric (Date, Odometer, or Both), the due date/odometer, and lubelog's own urgency and days/distance-remaining countdown as of now. Optionally limited to certain urgencies and/or tags.")]
         public async Task<string> GetReminders(
-            [Description("id of the vehicle")] int vehicleId
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only reminders with these urgencies (NotUrgent, Urgent, VeryUrgent, PastDue); omit for all")] List<ReminderUrgency>? urgencies = null,
+            [Description("Space-separated tags; reminders with any of them are returned")] string tags = ""
             )
         {
 
-            string endpoint = $"{instance}/api/vehicle/reminders?vehicleId={vehicleId}";
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            foreach (var urgency in urgencies ?? new List<ReminderUrgency>()) query.Add($"urgencies={urgency}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/reminders" : "/api/vehicle/reminders/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
 
             var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
             request.Headers.Add("culture-invariant", "true");
