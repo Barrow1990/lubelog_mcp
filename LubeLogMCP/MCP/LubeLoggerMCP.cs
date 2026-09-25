@@ -509,6 +509,52 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Gets odometer history for a vehicle, oldest first. Use this plus the current date to work out average distance per day and project forward to any future mileage.")]
+        public async Task<string> GetOdometerRecords(
+            [Description("id of the vehicle")] int vehicleId
+            )
+        {
+
+            string endpoint = $"{instance}/api/vehicle/odometerrecords?vehicleId={vehicleId}";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadFromJsonAsync<List<OdometerRecordApiModel>>();
+                var serializedResult = JsonSerializer.Serialize(result?.OrderBy(x => x.Date));
+                return serializedResult;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Gets maintenance reminders for a vehicle: what is due, on which metric (Date, Odometer, or Both), the due date/odometer, and lubelog's own urgency and days/distance-remaining countdown as of now.")]
+        public async Task<string> GetReminders(
+            [Description("id of the vehicle")] int vehicleId
+            )
+        {
+
+            string endpoint = $"{instance}/api/vehicle/reminders?vehicleId={vehicleId}";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadFromJsonAsync<List<ReminderApiModel>>();
+                var serializedResult = JsonSerializer.Serialize(result);
+                return serializedResult;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Get Extra Fields for a Record Type")]
         public async Task<string> GetExtraFields(
             [Description("Record type")] ImportMode importMode

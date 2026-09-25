@@ -2,7 +2,7 @@
 
 services:
   app:
-    image: ghcr.io/hargata/lubelogger_mcp:latest
+    image: ghcr.io/barrow1990/lubelogger_mcp:latest
     # environment:
     #  - LUBELOG_INSTANCE=
     #  - LUBELOG_USER=

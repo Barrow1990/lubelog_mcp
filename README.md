@@ -1,3 +1,12 @@
+> **Fork note (Barrow1990/lubelog_mcp):** adds two read tools missing upstream —
+> `GetOdometerRecords` (full odometer history, for projecting when a vehicle will
+> hit a future mileage) and `GetReminders` (maintenance reminders: due date/odometer,
+> metric, urgency). Everything else is unchanged from upstream. Image published to
+> `ghcr.io/barrow1990/lubelogger_mcp` (this fork has no access to upstream's own
+> DockerHub/GHCR credentials, so its own CI publishes under this fork's namespace
+> instead). See [hargata/lubelog_mcp](https://github.com/hargata/lubelog_mcp) for
+> the original project and its Wiki.
+
 # MCP Server for LubeLogger
 
 <img width="735" height="306" alt="image" src="https://github.com/user-attachments/assets/85887c27-48aa-42ff-b9db-f5a3fe225a9a" />
@@ -27,6 +36,8 @@ For details on both configurations, see [Wiki](https://github.com/hargata/lubelo
 - Add Odometer record from image of dashboard
 - Add Supply(or shop supply) record from image of invoice
 - Get latest odometer reading from vehicle
+- Get odometer history for a vehicle (this fork)
+- Get maintenance reminders for a vehicle (this fork)
 - Check status of LubeLogger instance
 
 ## Example Usage
