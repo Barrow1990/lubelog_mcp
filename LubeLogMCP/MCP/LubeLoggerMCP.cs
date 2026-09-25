@@ -160,6 +160,39 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Gets fuel (gas) records for a vehicle, or for every vehicle you can see when vehicleId is omitted. Optionally limited to a date range and/or tags. Records are in the order LubeLogger stores them, which is not guaranteed to be chronological.")]
+        public async Task<string> GetFuelRecords(
+            [Description("id of the vehicle; omit for all vehicles")] int? vehicleId = null,
+            [Description("Only records on or after this date")] DateTime? startDate = null,
+            [Description("Only records on or before this date")] DateTime? endDate = null,
+            [Description("Space-separated tags; records with any of them are returned")] string tags = ""
+            )
+        {
+            var query = new List<string>();
+            if (vehicleId.HasValue) query.Add($"vehicleId={vehicleId.Value}");
+            if (startDate.HasValue) query.Add($"startDate={startDate.Value:yyyy-MM-dd}");
+            if (endDate.HasValue) query.Add($"endDate={endDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrWhiteSpace(tags)) query.Add($"tags={Uri.EscapeDataString(tags)}");
+            string route = vehicleId.HasValue ? "/api/vehicle/gasrecords" : "/api/vehicle/gasrecords/all";
+            string endpoint = $"{instance}{route}" + (query.Any() ? "?" + string.Join("&", query) : string.Empty);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Adds a service record.")]
         public async Task<string> AddServiceRecord(
             [Description("id of the vehicle")] int vehicleId,
