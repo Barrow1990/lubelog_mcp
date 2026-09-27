@@ -63,6 +63,28 @@ namespace LubeLogMCP.MCP
             }
             return result;
         }
+        [McpServerTool, Description("Says which LubeLogger account the configured credentials belong to: username, email, and whether it is an admin and/or the root user. Useful for working out why a request is refused.")]
+        public async Task<string> WhoAmI()
+        {
+            string endpoint = $"{instance}/api/whoami";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("culture-invariant", "true");
+            AddAuthHeaders(request);
+            try
+            {
+                // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
+                // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Gets vehicles in garage.")]
         public async Task<string> GetVehicles()
         {
