@@ -75,4 +75,29 @@ namespace LubeLogMCP.Models
     public enum PlanPriority { Critical, Normal, Low }
     public enum PlanProgress { Backlog, InProgress, Testing, Done }
 
+
+    public class VehicleUpdateModel
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+        [JsonPropertyName("year")]
+        public int Year { get; set; }
+        [JsonPropertyName("make")]
+        public string Make { get; set; } = string.Empty;
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+        [JsonPropertyName("licensePlate")]
+        public string LicensePlate { get; set; } = string.Empty;
+        [JsonPropertyName("identifier")]
+        public string Identifier { get; set; } = "LicensePlate";
+        [JsonPropertyName("useEngineHours")]
+        public bool UseEngineHours { get; set; }
+        [JsonPropertyName("odometerOptional")]
+        public bool OdometerOptional { get; set; }
+        [JsonPropertyName("fuelType")]
+        public string FuelType { get; set; } = string.Empty;
+        [JsonPropertyName("extraFields")]
+        public List<ExtraFieldPostModel> ExtraFields { get; set; } = new List<ExtraFieldPostModel>();
+    }
+
 }

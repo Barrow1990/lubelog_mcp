@@ -1036,6 +1036,100 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Updates an existing vehicle's own details (year/make/model/plate/fuel type). " +
+            "This REPLACES the whole vehicle record - fields you leave out are cleared. Does not touch any of its " +
+            "service/repair/fuel/etc. records. Read it first with GetVehicles.")]
+        public async Task<string> UpdateVehicleRecord(
+            [Description("id of the vehicle to update")] int vehicleId,
+            [Description("Model year of the vehicle")] int year,
+            [Description("Make of the vehicle")] string make,
+            [Description("Model of the vehicle")] string model,
+            [Description("License plate of the vehicle")] string licensePlate,
+            [Description("Vehicle use engine hours")] bool useEngineHours,
+            [Description("Odometer is optional for vehicle")] bool odometerOptional,
+            [Description("Fuel type for the vehicle")] FuelType fuelType,
+            [Description("Any extra fields configured for vehiclerecord")] List<ExtraField> extraFields)
+        {
+            var requestData = new VehicleUpdateModel
+            {
+                Id = vehicleId,
+                Year = year,
+                Make = make,
+                Model = model,
+                LicensePlate = licensePlate,
+                UseEngineHours = useEngineHours,
+                OdometerOptional = odometerOptional,
+                FuelType = fuelType.ToString()
+            };
+
+            for (int i = 0; i < extraFields.Count; i++)
+            {
+                requestData.ExtraFields.Add(new ExtraFieldPostModel { Name = extraFields[i].Name, Value = extraFields[i].Value });
+            }
+
+            string endpoint = $"{instance}/api/vehicles/update";
+
+            var request = new HttpRequestMessage(HttpMethod.Put, endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json")
+            };
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("PERMANENTLY deletes a vehicle AND EVERY RECORD ATTACHED TO IT (service, repair, " +
+            "fuel, tax, reminders, everything) - this cascades, unlike deleting a single record. Needs a Manager-tier " +
+            "API key. Without confirm=true this only shows the vehicle that would be deleted and changes nothing - " +
+            "call it again with confirm=true, after explicitly telling the user everything that will be destroyed, to " +
+            "actually delete it. There is no undo.")]
+        public async Task<string> DeleteVehicleRecord(
+            [Description("id of the vehicle to delete, from GetVehicles")] int vehicleId,
+            [Description("Must be true to actually delete; otherwise this only previews the vehicle")] bool confirm = false)
+        {
+            if (!confirm)
+            {
+                string previewEndpoint = $"{instance}/api/vehicle/info?vehicleId={vehicleId}";
+                var previewRequest = new HttpRequestMessage(HttpMethod.Get, previewEndpoint);
+                previewRequest.Headers.Add("culture-invariant", "true");
+                AddAuthHeaders(previewRequest);
+                try
+                {
+                    var httpClient = _httpClientFactory.CreateClient();
+                    var preview = await httpClient.SendAsync(previewRequest).Result.Content.ReadAsStringAsync();
+                    return "NOT deleted - this is a preview. Deleting a vehicle deletes EVERY record attached to it " +
+                        "too, not just the vehicle. Call DeleteVehicleRecord again with confirm=true to actually " +
+                        "delete it and everything below; there is no undo. Vehicle (with its record counts/costs): " + preview;
+                }
+                catch (Exception ex)
+                {
+                    return ex.Message;
+                }
+            }
+
+            string endpoint = $"{instance}/api/vehicles/delete?id={vehicleId}";
+            var request = new HttpRequestMessage(HttpMethod.Delete, endpoint);
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Adds a maintenance reminder for a vehicle: due at a date, an odometer reading, or whichever of the two comes first.")]
         public async Task<string> AddReminderRecord(
             [Description("id of the vehicle")] int vehicleId,
