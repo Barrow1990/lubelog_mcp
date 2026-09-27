@@ -332,6 +332,96 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Updates an existing repair record. This REPLACES the whole record - fields you " +
+            "leave out are cleared, not left unchanged. Read the record first with GetRepairRecords and resend its " +
+            "notes/tags/extraFields alongside whatever you're actually changing, unless you mean to clear them.")]
+        public async Task<string> UpdateRepairRecord(
+            [Description("id of the record to update, from GetRepairRecords")] int recordId,
+            [Description("Date")] DateTime date,
+            [Description("Odometer at time of repair record")] int odometer,
+            [Description("Description")] string description,
+            [Description("Total cost")] decimal cost,
+            [Description("Any extra fields configured for this record type")] List<ExtraField> extraFields,
+            [Description("Notes; omitting this clears any existing notes")] string notes = "",
+            [Description("Space-separated tags; omitting this clears any existing tags")] string tags = "")
+        {
+            var requestData = new PostRequestModel
+            {
+                Id = recordId,
+                Date = date.ToString("yyyy-MM-dd"),
+                Odometer = odometer,
+                Description = description,
+                Cost = cost,
+                Notes = notes,
+                Tags = tags
+            };
+
+            for (int i = 0; i < extraFields.Count; i++)
+            {
+                requestData.ExtraFields.Add(new ExtraFieldPostModel { Name = extraFields[i].Name, Value = extraFields[i].Value });
+            }
+
+            string endpoint = $"{instance}/api/vehicle/repairrecords/update";
+
+            var request = new HttpRequestMessage(HttpMethod.Put, endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json")
+            };
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Deletes a repair record. Needs a Manager-tier API key (an Editor-tier key is " +
+            "refused by LubeLogger itself). Without confirm=true this only shows the record that would be deleted and " +
+            "changes nothing - call it again with confirm=true, after telling the user what will be deleted, to actually " +
+            "delete it. There is no undo.")]
+        public async Task<string> DeleteRepairRecord(
+            [Description("id of the record to delete, from GetRepairRecords")] int recordId,
+            [Description("Must be true to actually delete; otherwise this only previews the record")] bool confirm = false)
+        {
+            if (!confirm)
+            {
+                string previewEndpoint = $"{instance}/api/vehicle/repairrecords/all?id={recordId}";
+                var previewRequest = new HttpRequestMessage(HttpMethod.Get, previewEndpoint);
+                previewRequest.Headers.Add("culture-invariant", "true");
+                AddAuthHeaders(previewRequest);
+                try
+                {
+                    var httpClient = _httpClientFactory.CreateClient();
+                    var preview = await httpClient.SendAsync(previewRequest).Result.Content.ReadAsStringAsync();
+                    return "Not deleted - this is a preview. Call DeleteRepairRecord again with confirm=true to actually " +
+                        "delete it; there is no undo. Record: " + preview;
+                }
+                catch (Exception ex)
+                {
+                    return ex.Message;
+                }
+            }
+
+            string endpoint = $"{instance}/api/vehicle/repairrecords/delete?id={recordId}";
+            var request = new HttpRequestMessage(HttpMethod.Delete, endpoint);
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Adds an upgrade record.")]
         public async Task<string> AddUpgradeRecord(
             [Description("id of the vehicle")] int vehicleId,
