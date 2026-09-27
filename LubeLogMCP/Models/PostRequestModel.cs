@@ -56,6 +56,8 @@ namespace LubeLogMCP.Models
         public string Priority { get; set; } = string.Empty;
         [JsonPropertyName("progress")]
         public string Progress { get; set; } = string.Empty;
+        [JsonPropertyName("isEquipped")]
+        public bool? IsEquipped { get; set; }
     }
     public class ExtraFieldPostModel
     {
