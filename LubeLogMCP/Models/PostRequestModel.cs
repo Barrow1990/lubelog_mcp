@@ -46,6 +46,10 @@ namespace LubeLogMCP.Models
         public string Tags { get; set; } = string.Empty;
         [JsonPropertyName("initialOdometer")]
         public int? InitialOdometer { get; set; }
+        [JsonPropertyName("noteText")]
+        public string NoteText { get; set; } = string.Empty;
+        [JsonPropertyName("pinned")]
+        public bool? Pinned { get; set; }
     }
     public class ExtraFieldPostModel
     {

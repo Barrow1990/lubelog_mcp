@@ -1178,6 +1178,132 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Adds a note to a vehicle.")]
+        public async Task<string> AddNoteRecord(
+            [Description("id of the vehicle")] int vehicleId,
+            [Description("Short description/title of the note")] string description,
+            [Description("The note's own text")] string noteText,
+            [Description("Pin this note to the top")] bool pinned,
+            [Description("Any extra fields configured for noterecord")] List<ExtraField> extraFields,
+            [Description("Space-separated tags")] string tags = "")
+        {
+            var requestData = new PostRequestModel
+            {
+                Description = description,
+                NoteText = noteText,
+                Pinned = pinned,
+                Tags = tags
+            };
+
+            for (int i = 0; i < extraFields.Count; i++)
+            {
+                requestData.ExtraFields.Add(new ExtraFieldPostModel { Name = extraFields[i].Name, Value = extraFields[i].Value });
+            }
+
+            string endpoint = $"{instance}/api/vehicle/notes/add?vehicleId={vehicleId}";
+
+            var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json")
+            };
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Updates an existing note. This REPLACES the whole note - fields you leave out " +
+            "are cleared, not left unchanged. Read it first with GetNotes.")]
+        public async Task<string> UpdateNoteRecord(
+            [Description("id of the note to update, from GetNotes")] int recordId,
+            [Description("Short description/title of the note")] string description,
+            [Description("The note's own text")] string noteText,
+            [Description("Pin this note to the top")] bool pinned,
+            [Description("Any extra fields configured for noterecord")] List<ExtraField> extraFields,
+            [Description("Space-separated tags; omitting this clears any existing tags")] string tags = "")
+        {
+            var requestData = new PostRequestModel
+            {
+                Id = recordId,
+                Description = description,
+                NoteText = noteText,
+                Pinned = pinned,
+                Tags = tags
+            };
+
+            for (int i = 0; i < extraFields.Count; i++)
+            {
+                requestData.ExtraFields.Add(new ExtraFieldPostModel { Name = extraFields[i].Name, Value = extraFields[i].Value });
+            }
+
+            string endpoint = $"{instance}/api/vehicle/notes/update";
+
+            var request = new HttpRequestMessage(HttpMethod.Put, endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json")
+            };
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Deletes a note. Needs a Manager-tier API key (an Editor-tier key is " +
+            "refused by LubeLogger itself). Without confirm=true this only shows the record that would be deleted and " +
+            "changes nothing - call it again with confirm=true, after telling the user what will be deleted, to actually " +
+            "delete it. There is no undo.")]
+        public async Task<string> DeleteNoteRecord(
+            [Description("id of the record to delete, from GetNotes")] int recordId,
+            [Description("Must be true to actually delete; otherwise this only previews the record")] bool confirm = false)
+        {
+            if (!confirm)
+            {
+                string previewEndpoint = $"{instance}/api/vehicle/notes/all?id={recordId}";
+                var previewRequest = new HttpRequestMessage(HttpMethod.Get, previewEndpoint);
+                previewRequest.Headers.Add("culture-invariant", "true");
+                AddAuthHeaders(previewRequest);
+                try
+                {
+                    var httpClient = _httpClientFactory.CreateClient();
+                    var preview = await httpClient.SendAsync(previewRequest).Result.Content.ReadAsStringAsync();
+                    return "Not deleted - this is a preview. Call DeleteNoteRecord again with confirm=true to actually " +
+                        "delete it; there is no undo. Record: " + preview;
+                }
+                catch (Exception ex)
+                {
+                    return ex.Message;
+                }
+            }
+
+            string endpoint = $"{instance}/api/vehicle/notes/delete?id={recordId}";
+            var request = new HttpRequestMessage(HttpMethod.Delete, endpoint);
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Adds a tax record (e.g. registration, road tax, a loan payment).")]
         public async Task<string> AddTaxRecord(
             [Description("id of the vehicle")] int vehicleId,
