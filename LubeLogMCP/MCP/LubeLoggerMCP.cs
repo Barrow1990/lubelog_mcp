@@ -1178,6 +1178,140 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Adds a planned future record (e.g. a service to schedule) to a vehicle.")]
+        public async Task<string> AddPlanRecord(
+            [Description("id of the vehicle")] int vehicleId,
+            [Description("Description")] string description,
+            [Description("Estimated cost")] decimal cost,
+            [Description("What kind of record this will become once completed")] PlanType type,
+            [Description("Priority")] PlanPriority priority,
+            [Description("Progress")] PlanProgress progress,
+            [Description("Any extra fields configured for planrecord")] List<ExtraField> extraFields,
+            [Description("Notes")] string notes = "")
+        {
+            var requestData = new PostRequestModel
+            {
+                Description = description,
+                Cost = cost,
+                Type = type.ToString(),
+                Priority = priority.ToString(),
+                Progress = progress.ToString(),
+                Notes = notes
+            };
+
+            for (int i = 0; i < extraFields.Count; i++)
+            {
+                requestData.ExtraFields.Add(new ExtraFieldPostModel { Name = extraFields[i].Name, Value = extraFields[i].Value });
+            }
+
+            string endpoint = $"{instance}/api/vehicle/planrecords/add?vehicleId={vehicleId}";
+
+            var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json")
+            };
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Updates an existing planned record. This REPLACES the whole record - fields " +
+            "you leave out are cleared, not left unchanged. Read it first with GetPlanRecords.")]
+        public async Task<string> UpdatePlanRecord(
+            [Description("id of the record to update, from GetPlanRecords")] int recordId,
+            [Description("Description")] string description,
+            [Description("Estimated cost")] decimal cost,
+            [Description("What kind of record this will become once completed")] PlanType type,
+            [Description("Priority")] PlanPriority priority,
+            [Description("Progress")] PlanProgress progress,
+            [Description("Any extra fields configured for planrecord")] List<ExtraField> extraFields,
+            [Description("Notes; omitting this clears any existing notes")] string notes = "")
+        {
+            var requestData = new PostRequestModel
+            {
+                Id = recordId,
+                Description = description,
+                Cost = cost,
+                Type = type.ToString(),
+                Priority = priority.ToString(),
+                Progress = progress.ToString(),
+                Notes = notes
+            };
+
+            for (int i = 0; i < extraFields.Count; i++)
+            {
+                requestData.ExtraFields.Add(new ExtraFieldPostModel { Name = extraFields[i].Name, Value = extraFields[i].Value });
+            }
+
+            string endpoint = $"{instance}/api/vehicle/planrecords/update";
+
+            var request = new HttpRequestMessage(HttpMethod.Put, endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json")
+            };
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Deletes a planned record. Needs a Manager-tier API key (an Editor-tier key is " +
+            "refused by LubeLogger itself). Without confirm=true this only shows the record that would be deleted and " +
+            "changes nothing - call it again with confirm=true, after telling the user what will be deleted, to actually " +
+            "delete it. There is no undo.")]
+        public async Task<string> DeletePlanRecord(
+            [Description("id of the record to delete, from GetPlanRecords")] int recordId,
+            [Description("Must be true to actually delete; otherwise this only previews the record")] bool confirm = false)
+        {
+            if (!confirm)
+            {
+                string previewEndpoint = $"{instance}/api/vehicle/planrecords/all?id={recordId}";
+                var previewRequest = new HttpRequestMessage(HttpMethod.Get, previewEndpoint);
+                previewRequest.Headers.Add("culture-invariant", "true");
+                AddAuthHeaders(previewRequest);
+                try
+                {
+                    var httpClient = _httpClientFactory.CreateClient();
+                    var preview = await httpClient.SendAsync(previewRequest).Result.Content.ReadAsStringAsync();
+                    return "Not deleted - this is a preview. Call DeletePlanRecord again with confirm=true to actually " +
+                        "delete it; there is no undo. Record: " + preview;
+                }
+                catch (Exception ex)
+                {
+                    return ex.Message;
+                }
+            }
+
+            string endpoint = $"{instance}/api/vehicle/planrecords/delete?id={recordId}";
+            var request = new HttpRequestMessage(HttpMethod.Delete, endpoint);
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Adds a note to a vehicle.")]
         public async Task<string> AddNoteRecord(
             [Description("id of the vehicle")] int vehicleId,

@@ -50,6 +50,12 @@ namespace LubeLogMCP.Models
         public string NoteText { get; set; } = string.Empty;
         [JsonPropertyName("pinned")]
         public bool? Pinned { get; set; }
+        [JsonPropertyName("type")]
+        public string Type { get; set; } = string.Empty;
+        [JsonPropertyName("priority")]
+        public string Priority { get; set; } = string.Empty;
+        [JsonPropertyName("progress")]
+        public string Progress { get; set; } = string.Empty;
     }
     public class ExtraFieldPostModel
     {
@@ -58,4 +64,13 @@ namespace LubeLogMCP.Models
         [JsonPropertyName("value")]
         public string Value { get; set; } = string.Empty;
     }
+
+    public enum PlanType
+    {
+        ServiceRecord, RepairRecord, GasRecord, TaxRecord, UpgradeRecord, ReminderRecord,
+        NoteRecord, SupplyRecord, Dashboard, PlanRecord, OdometerRecord, VehicleRecord, InspectionRecord
+    }
+    public enum PlanPriority { Critical, Normal, Low }
+    public enum PlanProgress { Backlog, InProgress, Testing, Done }
+
 }
