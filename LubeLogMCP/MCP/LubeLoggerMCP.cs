@@ -1178,6 +1178,133 @@ namespace LubeLogMCP.MCP
                 return ex.Message;
             }
         }
+        [McpServerTool, Description("Adds a tax record (e.g. registration, road tax, a loan payment).")]
+        public async Task<string> AddTaxRecord(
+            [Description("id of the vehicle")] int vehicleId,
+            [Description("Date")] DateTime date,
+            [Description("Description")] string description,
+            [Description("Total cost")] decimal cost,
+            [Description("Any extra fields configured for taxrecord")] List<ExtraField> extraFields)
+        {
+            var requestData = new PostRequestModel
+            {
+                Date = date.ToString("yyyy-MM-dd"),
+                Description = description,
+                Cost = cost
+            };
+
+            for (int i = 0; i < extraFields.Count; i++)
+            {
+                requestData.ExtraFields.Add(new ExtraFieldPostModel { Name = extraFields[i].Name, Value = extraFields[i].Value });
+            }
+
+            string endpoint = $"{instance}/api/vehicle/taxrecords/add?vehicleId={vehicleId}";
+
+            var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json")
+            };
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Updates an existing tax record. This REPLACES the whole record - fields you " +
+            "leave out are cleared, not left unchanged. Read the record first with GetTaxRecords and resend its " +
+            "notes/tags/extraFields alongside whatever you're actually changing, unless you mean to clear them.")]
+        public async Task<string> UpdateTaxRecord(
+            [Description("id of the record to update, from GetTaxRecords")] int recordId,
+            [Description("Date")] DateTime date,
+            [Description("Description")] string description,
+            [Description("Total cost")] decimal cost,
+            [Description("Any extra fields configured for this record type")] List<ExtraField> extraFields,
+            [Description("Notes; omitting this clears any existing notes")] string notes = "",
+            [Description("Space-separated tags; omitting this clears any existing tags")] string tags = "")
+        {
+            var requestData = new PostRequestModel
+            {
+                Id = recordId,
+                Date = date.ToString("yyyy-MM-dd"),
+                Description = description,
+                Cost = cost,
+                Notes = notes,
+                Tags = tags
+            };
+
+            for (int i = 0; i < extraFields.Count; i++)
+            {
+                requestData.ExtraFields.Add(new ExtraFieldPostModel { Name = extraFields[i].Name, Value = extraFields[i].Value });
+            }
+
+            string endpoint = $"{instance}/api/vehicle/taxrecords/update";
+
+            var request = new HttpRequestMessage(HttpMethod.Put, endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json")
+            };
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Deletes a tax record. Needs a Manager-tier API key (an Editor-tier key is " +
+            "refused by LubeLogger itself). Without confirm=true this only shows the record that would be deleted and " +
+            "changes nothing - call it again with confirm=true, after telling the user what will be deleted, to actually " +
+            "delete it. There is no undo.")]
+        public async Task<string> DeleteTaxRecord(
+            [Description("id of the record to delete, from GetTaxRecords")] int recordId,
+            [Description("Must be true to actually delete; otherwise this only previews the record")] bool confirm = false)
+        {
+            if (!confirm)
+            {
+                string previewEndpoint = $"{instance}/api/vehicle/taxrecords/all?id={recordId}";
+                var previewRequest = new HttpRequestMessage(HttpMethod.Get, previewEndpoint);
+                previewRequest.Headers.Add("culture-invariant", "true");
+                AddAuthHeaders(previewRequest);
+                try
+                {
+                    var httpClient = _httpClientFactory.CreateClient();
+                    var preview = await httpClient.SendAsync(previewRequest).Result.Content.ReadAsStringAsync();
+                    return "Not deleted - this is a preview. Call DeleteTaxRecord again with confirm=true to actually " +
+                        "delete it; there is no undo. Record: " + preview;
+                }
+                catch (Exception ex)
+                {
+                    return ex.Message;
+                }
+            }
+
+            string endpoint = $"{instance}/api/vehicle/taxrecords/delete?id={recordId}";
+            var request = new HttpRequestMessage(HttpMethod.Delete, endpoint);
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         [McpServerTool, Description("Gets odometer history for a vehicle, oldest first. Use this plus the current date to work out average distance per day and project forward to any future mileage.")]
         public async Task<string> GetOdometerRecords(
             [Description("id of the vehicle")] int vehicleId
