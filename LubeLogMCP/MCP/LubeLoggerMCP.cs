@@ -1,7 +1,9 @@
 ﻿using LubeLogMCP.Helper;
 using LubeLogMCP.Models;
 using ModelContextProtocol.Server;
+using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -325,6 +327,96 @@ namespace LubeLogMCP.MCP
             {
                 // Passed through as-is, like GetLatestOdometer: lubelog writes several numeric fields
                 // as bare JSON numbers, so a typed model here would break on the next release.
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Updates an existing service record. This REPLACES the whole record - fields you " +
+            "leave out are cleared, not left unchanged. Read the record first with GetServiceRecords and resend its " +
+            "notes/tags/extraFields alongside whatever you're actually changing, unless you mean to clear them.")]
+        public async Task<string> UpdateServiceRecord(
+            [Description("id of the record to update, from GetServiceRecords")] int recordId,
+            [Description("Date serviced")] DateTime date,
+            [Description("Odometer at time of service")] int odometer,
+            [Description("Description of items serviced")] string description,
+            [Description("Total cost of the service")] decimal cost,
+            [Description("Any extra fields configured for servicerecord")] List<ExtraField> extraFields,
+            [Description("Notes; omitting this clears any existing notes")] string notes = "",
+            [Description("Space-separated tags; omitting this clears any existing tags")] string tags = "")
+        {
+            var requestData = new PostRequestModel
+            {
+                Id = recordId,
+                Date = date.ToString("yyyy-MM-dd"),
+                Odometer = odometer,
+                Description = description,
+                Cost = cost,
+                Notes = notes,
+                Tags = tags
+            };
+
+            for (int i = 0; i < extraFields.Count; i++)
+            {
+                requestData.ExtraFields.Add(new ExtraFieldPostModel { Name = extraFields[i].Name, Value = extraFields[i].Value });
+            }
+
+            string endpoint = $"{instance}/api/vehicle/servicerecords/update";
+
+            var request = new HttpRequestMessage(HttpMethod.Put, endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json")
+            };
+            AddAuthHeaders(request);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+        [McpServerTool, Description("Deletes a service record. Needs a Manager-tier API key (an Editor-tier key is " +
+            "refused by LubeLogger itself). Without confirm=true this only shows the record that would be deleted and " +
+            "changes nothing - call it again with confirm=true, after telling the user what will be deleted, to actually " +
+            "delete it. There is no undo.")]
+        public async Task<string> DeleteServiceRecord(
+            [Description("id of the record to delete, from GetServiceRecords")] int recordId,
+            [Description("Must be true to actually delete; otherwise this only previews the record")] bool confirm = false)
+        {
+            if (!confirm)
+            {
+                string previewEndpoint = $"{instance}/api/vehicle/servicerecords/all?id={recordId}";
+                var previewRequest = new HttpRequestMessage(HttpMethod.Get, previewEndpoint);
+                previewRequest.Headers.Add("culture-invariant", "true");
+                AddAuthHeaders(previewRequest);
+                try
+                {
+                    var httpClient = _httpClientFactory.CreateClient();
+                    var preview = await httpClient.SendAsync(previewRequest).Result.Content.ReadAsStringAsync();
+                    return "Not deleted - this is a preview. Call DeleteServiceRecord again with confirm=true to actually " +
+                        "delete it; there is no undo. Record: " + preview;
+                }
+                catch (Exception ex)
+                {
+                    return ex.Message;
+                }
+            }
+
+            string endpoint = $"{instance}/api/vehicle/servicerecords/delete?id={recordId}";
+            var request = new HttpRequestMessage(HttpMethod.Delete, endpoint);
+            AddAuthHeaders(request);
+            try
+            {
                 var httpClient = _httpClientFactory.CreateClient();
                 var result = await httpClient.SendAsync(request).Result.Content.ReadAsStringAsync();
 
@@ -979,21 +1071,67 @@ namespace LubeLogMCP.MCP
             if (_httpContextAccessor.HttpContext?.Request.Headers.TryGetValue("Authorization", out var authHeader) ?? false)
             {
                 request.Headers.Add("Authorization", authHeader.FirstOrDefault());
+                IdentifyCredentialOnce("Authorization", authHeader.FirstOrDefault());
             }
             else if (_httpContextAccessor.HttpContext?.Request.Headers.TryGetValue("x-api-key", out var apiKeyHeader) ?? false)
             {
                 request.Headers.Add("x-api-key", apiKeyHeader.FirstOrDefault());
+                IdentifyCredentialOnce("x-api-key", apiKeyHeader.FirstOrDefault());
             }
             else if (_httpContextAccessor.HttpContext?.Request.Query.TryGetValue("apiKey", out var apiKey) ?? false)
             {
                 request.Headers.Add("x-api-key", apiKey.FirstOrDefault());
+                IdentifyCredentialOnce("x-api-key", apiKey.FirstOrDefault());
             }
             else if (!string.IsNullOrWhiteSpace(username) && !string.IsNullOrWhiteSpace(password))
             {
                 var authenticationString = $"{username}:{password}";
                 var base64EncodedAuthenticationString = Convert.ToBase64String(Encoding.UTF8.GetBytes(authenticationString));
                 request.Headers.Add("Authorization", "Basic " + base64EncodedAuthenticationString);
+                IdentifyCredentialOnce("Authorization", "Basic " + base64EncodedAuthenticationString);
             }
+        }
+
+        // This server has no single fixed credential to check at startup - AddAuthHeaders forwards whatever
+        // x-api-key/Authorization a CALLING MCP CLIENT sent (or the LUBELOG_USER/PASS fallback), and different
+        // clients can use different keys against the same running process. Instead, the first time any given
+        // credential is used this run, it is identified once via WhoAmI and the result written to the console
+        // (which `docker logs` shows), so an operator can see which account each connected client is using
+        // without needing the AI to call the who_am_i tool itself. Never logs the credential's own value, only
+        // a short hash of it, so distinct keys are distinguishable across log lines without exposing them.
+        private static readonly ConcurrentDictionary<string, byte> _identifiedCredentials = new();
+
+        private void IdentifyCredentialOnce(string? headerName, string? headerValue)
+        {
+            if (string.IsNullOrWhiteSpace(headerName) || string.IsNullOrWhiteSpace(headerValue)) return;
+            string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(headerValue)))[..12];
+            if (!_identifiedCredentials.TryAdd(fingerprint, 0)) return; // already identified this run
+
+            // Deliberately builds its own request rather than reusing AddAuthHeaders (which would recurse back
+            // here) and runs detached from the calling request, since HttpContext does not survive into it.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var probeRequest = new HttpRequestMessage(HttpMethod.Get, $"{instance}/api/whoami");
+                    probeRequest.Headers.Add(headerName, headerValue);
+                    var probeClient = _httpClientFactory.CreateClient();
+                    var response = await probeClient.SendAsync(probeRequest);
+                    var body = await response.Content.ReadAsStringAsync();
+                    if (response.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine($"LubeLogger MCP: credential {fingerprint} identified as {body}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"LubeLogger MCP: credential {fingerprint} could not be identified (HTTP {(int)response.StatusCode}): {body}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"LubeLogger MCP: credential {fingerprint} could not be identified: {ex.Message}");
+                }
+            });
         }
     }
 }

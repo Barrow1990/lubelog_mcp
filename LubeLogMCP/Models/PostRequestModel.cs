@@ -40,6 +40,10 @@ namespace LubeLogMCP.Models
         public int? DueOdometer { get; set; }
         [JsonPropertyName("notes")]
         public string Notes { get; set; } = string.Empty;
+        [JsonPropertyName("id")]
+        public int? Id { get; set; }
+        [JsonPropertyName("tags")]
+        public string Tags { get; set; } = string.Empty;
     }
     public class ExtraFieldPostModel
     {
